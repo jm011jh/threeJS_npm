@@ -9,26 +9,30 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { BloomPass } from 'three/addons/postprocessing/BloomPass.js';
 import { LuminosityShader } from 'three/addons/shaders/LuminosityShader.js';
 import { CopyShader } from 'three/addons/shaders/CopyShader.js';
-
+import { Lensflare, LensflareElement } from 'three/examples/jsm/objects/Lensflare.js';
+import { MathUtils } from "three";
 class App {
     constructor(){
+        this._init()
+        window.onresize = this.resize.bind(this)
+        this.resize()
+        requestAnimationFrame(this.render.bind(this))
+    }
+    _init(){
         this._setRenderer()
         this._setScene()
         this._setupLight()
         this._setupCamera()
+        this._setupModel_hexa()
+        // this._setupModel_box()
+        this._setupModel_img()
         this._setRenderPass()
         this._setupUnrealBloomPass()
-        this._setupFinalPass()
-        this._setupModel4()
         this._setupControls()
-
-        window.onresize = this.resize.bind(this)
-        this.resize()
-
-        requestAnimationFrame(this.render.bind(this))
     }
-    _setRenderer() {
-        const divContainer = document.getElementById("webgl-container")
+    _setRenderer(){
+        const divContainerId = "webgl-container"
+        const divContainer = document.getElementById(divContainerId)
         this._divContainer = divContainer
 
         const renderer = new THREE.WebGLRenderer({
@@ -43,15 +47,19 @@ class App {
         this._divContainer.appendChild(renderer.domElement)
         this._renderer = renderer
     }
-    _setScene() {
+    _setScene(){
         const scene = new THREE.Scene()
+        scene.background = new THREE.Color().setHSL( 0.51, 0.4, 0.2 );
         this._scene = scene
     }
-    _setRenderPass(){
-        const renderPass = new RenderPass(this._scene, this._camera)
-        this._renderPass = renderPass
+    _setupLight(){
+        const color = 0xffffff
+        const intensity = 1
+        const light = new THREE.DirectionalLight(color, intensity)
+        light.position.set(-1, 2, 10)
+        this._scene.add(light)
     }
-    _setupCamera() {
+    _setupCamera(){
         const width = this._divContainer.clientWidth
         const height = this._divContainer.clientHeight
         const camera = new THREE.PerspectiveCamera(
@@ -60,17 +68,22 @@ class App {
             0.1,
             100
         )
-        camera.position.z = 2
+        const camera2 = new THREE.PerspectiveCamera(
+            75,
+            width / height,
+            0.1,
+            100
+        )
+        camera.position.z = 10
+        camera.position.x = 0.5
         this._camera = camera
+        this._camera2 = camera2
     }
-    _setupLight() {
-        const color = 0xffffff
-        const intensity = 1
-        const light = new THREE.DirectionalLight(color, intensity)
-        light.position.set(-1, 2, 4)
-        this._scene.add(light)
+    _setRenderPass(){
+        const renderPass = new RenderPass(this._scene, this._camera)
+        this._renderPass = renderPass
     }
-    _setupControls() {
+    _setupControls(){
         new OrbitControls(this._camera, this._divContainer)
     }
     _setupUnrealBloomPass(){
@@ -79,12 +92,13 @@ class App {
         bloomComposer.addPass(this._renderPass)
 
         const params = {
-            exposure: 1.2,
-            bloomThreshold: 0.9,
+            exposure: 1,
+            bloomThreshold: 0.6,
             bloomStrength: 1,
             bloomRadius: 0.6
         };
         const unrealBloomPass = new UnrealBloomPass(new THREE.Vector2(this._divContainer.clientWidth, this._divContainer.clientHeight), 1.5, 0.4, 0.85)
+        unrealBloomPass.renderToScreen = true;;;
         unrealBloomPass.threshold = params.bloomThreshold
         unrealBloomPass.strength = params.bloomStrength
         unrealBloomPass.radius = params.bloomRadius
@@ -107,143 +121,63 @@ class App {
         this._bloomComposer = bloomComposer
 
     }
-    _setupFinalPass(){
-        const finalPass = new ShaderPass(
-            new THREE.ShaderMaterial( {
-              uniforms: {
-                baseTexture: { value: null },
-                bloomTexture: { value: this._bloomComposer.renderTarget2.texture }
-              },
-              vertexShader: document.getElementById( 'vertexshader' ).textContent,
-              fragmentShader: document.getElementById( 'fragmentshader' ).textContent,
-              defines: {}
-            } ), "baseTexture"
-        );
-        finalPass.needsSwap = true;
-        this._finalPass = finalPass
+    _setupModel_img(){
+        const textureLoader = new THREE.TextureLoader()
+        const texture = textureLoader.load("../img/lensflare4.png")
 
-        const finalComposer = new EffectComposer( this._renderer );
-        finalComposer.addPass( this._renderPass );
-        finalComposer.addPass( this._finalPass );
-        this._finalComposer = finalComposer
-          
+        const spriteMat = new THREE.SpriteMaterial({map:texture})
+        const sprite = new THREE.Sprite(spriteMat)
+
+        sprite.position.set(0,0,-1)
+        sprite.scale.set(4,4,4)
+        this._scene.add(sprite)
     }
-    _setupModel() {
-        const particles = []
-        const colors = [
-            [1,0,1],
-            [1,1,1],
-            [0,0,1],
-            [1,0,0],
-        ]
-        const geo_particle = new THREE.PlaneGeometry(1,1)
-        const mat_particle = new THREE.MeshBasicMaterial( {color: 0xffff00, side: THREE.DoubleSide} );
-
-        const [rangeMin, rangeMax, gap] = [-10, 10, 10]
-        for (let x = rangeMin; x<= rangeMax; x += gap){
-            for(let y = rangeMin*2; y<= rangeMax; y += gap){
-                for (let z = rangeMin*2; z <= rangeMax; z+= gap){
-                    const particle = new THREE.Mesh(geo_particle, mat_particle)
-                    particle.position.set(x,y,z)
-                    particle.material.color.setRGB(...colors[parseInt(colors.length * Math.random())])
-                    this._scene.add(particle)
-                    particles.push(particle)
-                }
-            }
-        }
-        this._particles = particles
-
-        const geometry = new THREE.BoxGeometry(.5, .5, .5)
-        const darkMaterial = new THREE.MeshBasicMaterial({color: 0x000000});
-        const lightMaterial = new THREE.MeshLambertMaterial({color: 0xffff00});
-        this._darkMaterial = darkMaterial
-        this._lightMaterial = lightMaterial
-        const cube = new THREE.Mesh(geometry, lightMaterial)
-
-        this._scene.add(cube)
-        this._cube = cube
+    _setupModel_box(){
+        const geom = new THREE.BoxGeometry(3,3,3)
+        const mate = new THREE.MeshPhongMaterial({color:0xff69b4})
+        const mesh = new THREE.Mesh(geom,mate)
+        this._scene.add(mesh)
     }
-    _setupModel2() {
-            let points = [];
-            points.push( new THREE.Vector3(-50, 0, 0 ) );
-            points.push( new THREE.Vector3( 50, 0, 0 ) );
-            const line = new MeshLine();
-            line.setVertices(points);
-            const material = new MeshLineMaterial();
-            const mesh = new THREE.Mesh( line, material );
-            this._scene.add( mesh );
-    }
-    _setupModel3() {
-        const segmentLength = 1;
-        const nbrOfPoints = 5;
-        const points = [];
-        const turbulence = 0.2;
-        for (let i = 0; i < nbrOfPoints; i++) {
-          points.push(new THREE.Vector3(
-            i * segmentLength,
-            (Math.random() * (turbulence * 2)) - turbulence,
-            (Math.random() * (turbulence * 2)) - turbulence,
-          ));
-        }
-        const linePoints = new THREE.BufferGeometry().setFromPoints(new THREE.CatmullRomCurve3(points).getPoints(100));
-        
-        // Build the geometry
-        const line = new MeshLine();
-        line.setGeometry(linePoints );
-        const geometry = line.geometry;
-        
-        // Build the material with good parameters to animate it.
-        const material = new MeshLineMaterial({
-          transparent: true,
-          lineWidth: 0.1,
-          color: 0xff0000,
-          dashArray: 1.8,     // always has to be the double of the line
-          dashOffset: 1,    // start the dash at zero
-          dashRatio: 0.75,  // visible length range min: 0.99, max: 0.5
+    _setupModel_hexa(){
+        const vertexShader = `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `;
+        const fragmentShader2 = `
+          varying vec2 vUv;
+          uniform vec3 color;
+          uniform float opacity;
+          void main() {
+            vec2 uv = vUv - 0.5;
+            float r = length(uv) * 0.1;
+            float a = 1.0 - smoothstep(1.0, 30.0, r);
+            gl_FragColor = vec4(color, a * opacity);
+          }
+        `;
+        const hexagonCount = 5
+        const hexa_geo = new THREE.CircleGeometry(1, 6)
+        const hexa_mat = new THREE.ShaderMaterial({
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader2,
+            transparent:true,
+            uniforms: {
+                opacity:{value: 0.838},
+                color: { value: new THREE.Color("#FFA533") },
+            },
         });
-        
-        // Build the Mesh
-        const lineMesh = new THREE.Mesh(geometry, material);
-        lineMesh.position.x = -2;
-        // lineMesh.rotation.y = THREE.Math.degToRad(50)
-        console.log(lineMesh)
-        this._lineMesh = lineMesh
-        
-        // ! Assuming you have your own webgl engine to add meshes on scene and update them.
-        this._scene.add(lineMesh);
-    }
-    _setupModel4() {
-        const lines = []
-        const colors = [ '#A0CC33', '#3CEEB5', '#ff0000', "#ed0086", "#0000ff", "#00ff00","#ffffff","#cccccc"]
-        const count = 50
-        const radius = 10
-        const rand = THREE.MathUtils.randFloatSpread
-        for(let i = 0; i <= count; i++){
-
-            const pos = new THREE.Vector3(rand(radius),rand(radius),rand(radius))
-            const points = Array.from({ length: 7 }, () => pos.add(new THREE.Vector3(rand(radius), rand(radius), rand(radius))).clone())
-            const curve = new THREE.CatmullRomCurve3(points).getPoints(200)
-            const color_val = colors[parseInt(colors.length * Math.random())]
-            const width_val = Math.max(radius/80, (radius / 30) * Math.random())
-
-            const mat_line = new MeshLineMaterial({
-                transparent : true,
-                lineWidth : width_val,
-                color : color_val,
-                depthWrite : false,
-                dashArray : 0.25,
-                dashRatio : 0.9,
-                toneMapped : false
-            })
-            const geom_test = new THREE.BufferGeometry().setFromPoints(curve)
-            const line = new MeshLine();
-            line.setGeometry(geom_test);
-            const geo_line = line.geometry;
-            const mesh_line = new THREE.Mesh(geo_line, mat_line);
-            lines.push(mesh_line)
-            this._scene.add(mesh_line)
+        const hexagon = new THREE.Mesh(hexa_geo,hexa_mat)
+        for(let i =0; i< hexagonCount; i++){
+            hexagon.position.x = Math.random() * 10 - 5
+            hexagon.position.y = Math.random() * 10 - 5
+            hexagon.position.z = Math.random() * 10 - 5
+            hexagon.position.normalize().multiplyScalar(Math.random() * 4.0 + 2.0)
+            hexagon.material.uniforms.opacity.value = 0.98 + 0.0005 * i
+            console.log(hexagon.material.uniforms.opacity.value)
+            this._scene.add(hexagon.clone())
         }
-        this._lines = lines
     }
     resize() {
         const width = this._divContainer.clientWidth
@@ -254,22 +188,18 @@ class App {
         
         this._renderer.setSize(width, height)
         this._bloomComposer.setSize( width, height );
-        this._finalComposer.setSize( width, height );
     }
     render(time) {
         // this._renderer.render(this._scene, this._camera)
         this._bloomComposer.render()
-        this._finalComposer.render()
+        // this._airglowComposer.render()
         
         this.update(time)
         requestAnimationFrame(this.render.bind(this))
     }
     update(time) {
         time *= 0.001
-        for(let line of this._lines){
-            const speed = Math.max(0.1, 1* Math.random())
-            line.material.dashOffset -= (speed)/500
-        }
+        let y = Math.cos(time) * (30)
     }
 }
 

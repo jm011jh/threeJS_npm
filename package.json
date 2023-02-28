@@ -1,23 +1,27 @@
 {
-  "name": "230216_threejs_npm",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "webpack",
-    "start": "webpack server --open"
+  "dependencies": {
+    "three": "^0.150.0",
+    "three-noise": "^1.1.2",
+    "three.meshline": "^1.4.0"
   },
-  "author": "",
-  "license": "ISC",
   "devDependencies": {
+    "copy-webpack-plugin": "^11.0.0",
     "html-webpack-plugin": "^5.5.0",
     "webpack": "^5.75.0",
+    "webpack-bundle-analyzer": "^4.8.0",
     "webpack-cli": "^5.0.1",
     "webpack-dev-server": "^4.11.1"
   },
-  "dependencies": {
-    "three": "^0.148.0",
-    "three.meshline": "^1.2.0"
-  }
+  "name": "3js_npminstall",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack",
+    "start": "webpack server --open",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
 }
