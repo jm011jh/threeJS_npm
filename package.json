@@ -2,7 +2,8 @@
   "dependencies": {
     "three": "^0.150.0",
     "three-noise": "^1.1.2",
-    "three.meshline": "^1.4.0"
+    "three.meshline": "^1.4.0",
+    "tween.js": "^16.6.0"
   },
   "devDependencies": {
     "copy-webpack-plugin": "^11.0.0",
