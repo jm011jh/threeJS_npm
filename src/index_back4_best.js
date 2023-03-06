@@ -36,6 +36,7 @@ void main() {
 }
 `;
 
+
 class App {
     constructor(){
         this._init()
@@ -48,16 +49,17 @@ class App {
         this._setScene()
         this._setupLight()
         this._setupCamera()
-        this._setupModel_box()
         this._setupModel_hexa()
+        // this._setupModel_box()
         this._setupModel_openLight()
         this._setRenderPass()
+        this._setupUnrealBloomPass()
         this._setClickEvent()
         this._setupControls()
 
         this._setupModel_card_effect()
 
-        this._openEffect()
+        this._openEffect_glow()
     }
     _setRenderer(){
         const divContainerId = "webgl-container"
@@ -75,6 +77,7 @@ class App {
         renderer.toneMapping = THREE.ReinhardToneMapping;
         this._divContainer.appendChild(renderer.domElement)
         this._renderer = renderer
+        
     }
     _setClickEvent(){
         this._raycaster = new THREE.Raycaster()
@@ -85,125 +88,150 @@ class App {
             this._raycaster._clickedPosition.y = (e.clientX/ window.innerHeight) * 2 + 1
             this._raycaster.setFromCamera(this._raycaster._clickedPosition, this._camera)
             const found = this._raycaster.intersectObjects(this._scene.children)
+            console.log(found)
             if(found.length > 0){
+                console.log("hi")
                 const clickedObj = found[0].object
+                console.log(clickedObj)
             }
         })
     }
     _setScene(){
         const scene = new THREE.Scene()
+        scene.background = new THREE.Color().setHSL( 0.51, 0.4, 0.2 );
         this._scene = scene
     }
     _setupLight(){
         const color = 0xffffff
         const intensity = 10
         const light = new THREE.DirectionalLight(color, intensity)
-        const light2 = new THREE.DirectionalLight(color, intensity)
-        light.position.set(0, 0, 1)
-        light2.position.set(0, 0, -5)
-        this._scene.add(light,light2)
+        light.position.set(-1, 2, 3)
+        this._scene.add(light)
     }
     _setupCamera(){
         const width = this._divContainer.clientWidth
         const height = this._divContainer.clientHeight
-        const camera = new THREE.PerspectiveCamera(75,width / height,0.1,100)
+        const camera = new THREE.PerspectiveCamera(
+            75,
+            width / height,
+            0.1,
+            100
+        )
+        const camera2 = new THREE.PerspectiveCamera(
+            75,
+            width / height,
+            0.1,
+            100
+        )
+        // camera.position.x = Math.PI*4
+        // camera.position.y = Math.PI*2
         camera.position.z = 5
         this._camera = camera
+        this._camera2 = camera2
+    }
+    _setRenderPass(){
+        const renderPass = new RenderPass(this._scene, this._camera)
+        this._renderPass = renderPass
     }
     _setupControls(){
         new OrbitControls(this._camera, this._divContainer)
     }
-    _setRenderPass(){
-        const renderPass = new RenderPass(this._scene, this._camera)
+    _setupUnrealBloomPass(){
+        const bloomComposer = new EffectComposer( this._renderer )
+        bloomComposer.renderToScreen = true
+        bloomComposer.addPass(this._renderPass)
 
         const params = {
             exposure: 1,
             bloomThreshold: 0.5,
-            bloomStrength: 1.5,
-            bloomRadius: 1
+            bloomStrength: 1,
+            bloomRadius: 0.6
         };
-
         const unrealBloomPass = new UnrealBloomPass(new THREE.Vector2(this._divContainer.clientWidth, this._divContainer.clientHeight), 1.5, 0.4, 0.85)
-        unrealBloomPass.renderToScreen = true
+        unrealBloomPass.renderToScreen = true;;;
         unrealBloomPass.threshold = params.bloomThreshold
         unrealBloomPass.strength = params.bloomStrength
         unrealBloomPass.radius = params.bloomRadius
-        this._unrealBloomPass = unrealBloomPass    
-        
-        
+        this._unrealBloomPass = unrealBloomPass        
+        bloomComposer.addPass(this._unrealBloomPass)
+         
+        const luminosityPass = new ShaderPass(LuminosityShader)
+        this._luminosityPass = luminosityPass
+        // bloomComposer.addPass(this._luminosityPass)
+
+        const bloomPass = new BloomPass(1,25,5)
+        this._bloomPass = bloomPass
+        // bloomComposer.addPass(this._bloomPass)
+
         const effectCopy = new ShaderPass(CopyShader)
         effectCopy.renderToScreen = true
         this._effectCopy = effectCopy
-
-        const bloomComposer = new EffectComposer( this._renderer )
-        bloomComposer.renderToScreen = true
-        bloomComposer.addPass(renderPass)
-        bloomComposer.addPass(this._unrealBloomPass)
         bloomComposer.addPass(this._effectCopy)
+         
         this._bloomComposer = bloomComposer
+
     }
-    // _setupModel_img(){
-    //     const textureLoader = new THREE.TextureLoader()
-    //     const texture = textureLoader.load("../img/card.png")
-    //     const materials = [
-    //         new THREE.MeshBasicMaterial({map : null}),
-    //         new THREE.MeshBasicMaterial({map : null}),
-    //         new THREE.MeshBasicMaterial({map : null}),
-    //         new THREE.MeshBasicMaterial({map : null}),
-    //         new THREE.MeshPhysicalMaterial({
-    //             map: texture,
-    //             transparent: true,
-    //             color:0xffffff,
-    //             roughness:0.7,
-    //             metalness:0.2,
-    //             opacity:0
-    //         }),
-    //         new THREE.MeshBasicMaterial({map : null}),
-    //     ]
-    //     const geom = new THREE.BoxGeometry(3,3,0.001)
-    //     const box = new THREE.Mesh(geom,materials)
-    //     box.scale.set(0,0,0)
-    //     this._card = box
-    //     box.position.set(0,0,0.5)
-    //     this._scene.add(box)
-    // }
+    _setupModel_img(){
+        const textureLoader = new THREE.TextureLoader()
+        const texture = textureLoader.load("../img/lensflare4.png")
+
+        const spriteMat = new THREE.SpriteMaterial({map:texture})
+        const sprite = new THREE.Sprite(spriteMat)
+
+        sprite.position.set(0,0,-1)
+        sprite.scale.set(4,4,4)
+        this._scene.add(sprite)
+    }
     _setupModel_box(){
-        const loader = new GLTFLoader()
-        const url = "../model/effect/card_01.glb"
+        const loader = new FBXLoader()
         const boxObj = new Object3D()
+        const url = "../model/chest/chest.fbx"
+        boxObj.rotateY(-Math.PI/2)
+        boxObj.rotateX(-Math.PI/2)
         boxObj.position.set(0,0,0)
-        boxObj.scale.set(0,0,0)
+        boxObj.scale.set(2,2,2)
+        boxObj.name = "box"
         this._boxObj = boxObj
-        loader.load(url,(glb) => {
-            glb.scene.scale.multiplyScalar(10);
-            glb.scene.children[0].children[1].material.roughness = 0.8
-            glb.scene.children[0].children[1].material.metalness = 0
-            this._boxObj.add(glb.scene)
-        })
         this._scene.add(boxObj)
+        loader.load(url,(obj) => {
+            obj.scale.multiplyScalar(0.01);
+            obj.position.set(-1,1,-1)
+            obj.traverse( function ( child ) {
+                child.userData.root = obj
+                if ( child.isMesh ) {
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+                if ( child.isGroup ) {
+                    child.rotation.x = Math.PI;
+                    child.rotation.y = Math.PI;
+                    child.rotation.z = Math.PI;
+                }
+
+            } );
+            boxObj.add(obj)
+        })
     }
     _setupModel_card_effect(){
         this._clock = new THREE.Clock()
-        const loader = new GLTFLoader()
-        const url = "../model/effect/card_effect_06.glb"
+        const loader = new GLTFLoader();
+        const url = "../model/effect/card_effect_00.glb"
         loader.load( url,  ( gltf ) => {
+            console.log(gltf.animations)
             this._mixer = new THREE.AnimationMixer(gltf.scene)
             const action = this._mixer.clipAction(gltf.animations[0])
-            this._action = action
             action.setLoop( THREE.LoopOnce );
             action.clampWhenFinished = true;
+            // action.enable = true
             action.play()
-            
-            this._cardEffect = gltf.scene
-            this._cardEffect.scale.multiplyScalar(18)
-            this._cardEffect.position.set(0,0,-2)
-        	this._scene.add( this._cardEffect )
+            gltf.scene.scale.multiplyScalar(5)
+        	this._scene.add( gltf.scene );
         }, undefined, ( error ) => {
         	console.error( error );
         } );
     }
     _setupModel_hexa(){
-        const hexagonCount = 30
+        const hexagonCount = 50
         const hexagonObjs = new THREE.Object3D
         hexagonObjs.name = "hexagonObj"
         for(let i =0; i< hexagonCount; i++){
@@ -215,7 +243,7 @@ class App {
                 transparent:true,
                 uniforms: {
                     opacity:{value: 0},
-                    color: { value: {b: 1.0,g: 0.78,r: 0.1} },
+                    color: { value: {b: .3,g: 0.75,r: 0.8} },
                 },
             });
             const hexagon_front = new THREE.Mesh(hexa_geo,hexa_mat)
@@ -226,14 +254,18 @@ class App {
             let pos_z = Math.random() * 0.0005 - 0.00025
             let multiplyScalerNumber = Math.random() * 2.0 + 1.0
             hexagon_front.scale.set(scale_a,scale_a,scale_a)
-            hexagon_back.scale.set(scale_a,scale_a,scale_a)
-            hexagon_back.position.x,hexagon_front.position.x = pos_x
-            hexagon_back.position.y,hexagon_front.position.y = pos_y
-            hexagon_back.position.z,hexagon_front.position.z = pos_z
-            hexagon_back.rotation.x = Math.PI
+            hexagon_front.position.x = pos_x
+            hexagon_front.position.y = pos_y
+            hexagon_front.position.z = pos_z
             hexagon_front.position.normalize().multiplyScalar(multiplyScalerNumber)
+            hexagon_back.scale.set(scale_a,scale_a,scale_a)
+            hexagon_back.position.x = pos_x
+            hexagon_back.position.y = pos_y
+            hexagon_back.position.z = pos_z
+            hexagon_back.rotation.x = Math.PI
             hexagon_back.position.normalize().multiplyScalar(multiplyScalerNumber)
-            hexagonObj.add(hexagon_front.clone(),hexagon_back.clone())
+            hexagonObj.add(hexagon_front.clone())
+            hexagonObj.add(hexagon_back.clone())
             hexagonObjs.add(hexagonObj)
         }
         this._hexagonObjs = hexagonObjs
@@ -257,9 +289,9 @@ class App {
         this._scene.add(openLightCircleObj)
         this._openLightCircleObj = openLightCircleObj
     }
-    _openEffect(){
-        let degree = 2
-        let fast = 4
+    _openEffect_glow(){
+        let degree = 1
+        let fast = 5
         /**
          * set the direction hexa objects and open light circle to camera position
          */
@@ -270,15 +302,16 @@ class App {
             this._openLightCircleObj.lookAt(cameraPos)
         }
         /**
-         * @param {number} duration animation duration
+         * animation for first horizon light
          */
-        const eff_openFlare = (duration) => {
-            degree = degree+(fast*20)/duration
+        const eff_update01 = () => {
+            degree = degree+(fast*20)/800
             if(degree>fast*2) {
                 this._scene.remove(this._openLightCircleObj)
-                cancelAnimationFrame(eff_openFlare)
+                cancelAnimationFrame(eff_update01)
                 return
             }
+
             if(degree<fast){
                 this._openLightCircleObj.scale.y = degree
                 this._openLightCircleObj.scale.x = degree/4
@@ -286,41 +319,40 @@ class App {
                 this._openLightCircleObj.scale.y = fast*2 - degree
                 this._openLightCircleObj.scale.x = fast/4
             }
-            requestAnimationFrame(eff_openFlare)
+            requestAnimationFrame(eff_update01)
         }
         /**
          * animation for hexa polygons(this._hexagonObjs.children)
          * @param {number} delay delay time for appear hexa polygons
-         * @param {number} scale scale of hexa polygons
          */
-        const eff_hexagons = (delay,scale) => {
-            let delayBetween = 20
+        const eff_update02 = (delay) => {
             this._hexagonObjs.children.forEach( (el, idx) => {
                 if(idx < this._hexagonObjs.children.length){
                     for(let i = 0; i<el.children.length; i++){
+                        let scale = 1
                         let randomX = Math.random()*30 - 15
                         let randomY = Math.random()*20 - 10
                         let randomZ = Math.random()*2000 + 100
                         new TWEEN.Tween(el.children[i].position)
-                        .to({x:randomX,y:randomY,z:randomZ},1500)
-                        .delay(idx*delayBetween + delay)
+                        .to({x:randomX,y:randomY,z:randomZ},2000)
+                        .delay(idx*50 + delay)
                         .easing(TWEEN.Easing.Cubic.In)
                         .start()
         
                         new TWEEN.Tween(el.children[i].material.uniforms.opacity)
                         .to({value:0.9},300)
                         .easing(TWEEN.Easing.Cubic.Out)
-                        .delay(idx*delayBetween + delay)
+                        .delay(50*idx + delay)
                         .start()
         
                         new TWEEN.Tween(el.children[i].scale)
                         .to({x:scale,y:scale,z:scale,},2000)
-                        .delay(idx*delayBetween + delay)
+                        .delay(idx*50 + delay)
                         .start()
         
                         new TWEEN.Tween(el.children[i].material.uniforms.color.value)
                         .to({b: 0.4,g: 0.8470588235294118,r: 1},1000)
-                        .delay(idx*delayBetween + delay)
+                        .delay(idx*50 + delay)
                         .start()
                     }
                 }
@@ -330,7 +362,7 @@ class App {
          * clear the hexa polygons after animation end
          * @param {number} delay delay time for clear  hexa polygons
          */
-        const eff_blueCircle = (delay) => {
+        const eff_update03 = (delay) => {
             setTimeout(()=>{
                 this._hexagonObjs.children.forEach((el)=>{
                     for(let i = 0; i<el.children.length; i++){
@@ -341,48 +373,15 @@ class App {
                         .delay(500)
                         .to({value:0},10)
                         .start()
-                        .onComplete(() => { this._scene.remove(this._hexagonObj), this._scene.remove(this._cardEffect) })
+                        .onComplete(() => { this._scene.remove(this._hexagonObj) })
                     }
                 })
             },delay)
         }
-        let time = 0
-        const eff_cardHover = () => {
-            time += 0.05
-            let y = (Math.cos(time) * 30) - 30
-            requestAnimationFrame(eff_cardHover)
-            this._boxObj.scale.set(1,1,1)
-            this._boxObj.position.set(0,y/400,0)
-        }
-        const eff_cardOpen = (delay) => {
-            new TWEEN.Tween(this._boxObj)
-            .to({opacity:1},1000)
-            .delay(delay/2)
-            .start()
-            new TWEEN.Tween(this._boxObj.scale)
-            .to({x:1.2,y:1.2,z:1.2},200)
-            .delay(delay + 200)
-            .start()
-            .onComplete(()=>{
-                new TWEEN.Tween(this._boxObj.scale)
-                .to({x:1,y:1,z:1},400)
-                .start()
-                .onComplete(()=>{
-                    eff_cardHover()
-                })
-            })
-        }
-        const eff_bloomOff = (delay) => {
-            new TWEEN.Tween(this._unrealBloomPass)
-            .to({strength: 0})
-            .delay(delay)
-            .start()
-        }
-        eff_openFlare(800)
-        eff_hexagons(800,1)
-        eff_blueCircle(2000)
-        eff_cardOpen(1000)
-        eff_bloomOff(1400)
+        //eff_lookAt()
+        eff_update01()
+        eff_update02(1000)
+        eff_update03(5000)
     }
     resize() {
         const width = this._divContainer.clientWidth
@@ -395,13 +394,17 @@ class App {
         this._bloomComposer.setSize( width, height );
     }
     render(time) {
+        // this._renderer.render(this._scene, this._camera)
         this._bloomComposer.render()
+        // this._airglowComposer.render()
         TWEEN.update();
         this.update(time)
         requestAnimationFrame(this.render.bind(this))
     }
     update(time) {
         time *= 0.001
+        let y = Math.cos(time) * (30)
+
         const delta = this._clock.getDelta()
         if(this._mixer) this._mixer.update(delta)
     }
